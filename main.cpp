@@ -18,7 +18,7 @@ float sinFluc(float minSize, float maxSize, float seed) {
 }
 
 int main() {
-  glm::vec2 screen_size(800.0f, 600.0f);
+  glm::vec2 screen_size(1200.0f, 800.0f);
 
   const float PI = 3.14159265f;
 
@@ -31,6 +31,7 @@ int main() {
   glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
   glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
   glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+  // glfwWindowHint(GLFW_TRANSPARENT_FRAMEBUFFER, 1);
 
   // GLFW: Create window
   GLFWwindow *window = glfwCreateWindow(screen_size.x, screen_size.y,
@@ -41,6 +42,7 @@ int main() {
     return -1;
   }
   glfwMakeContextCurrent(window);
+  // glfwSwapInterval(0);
 
   // GLAD: Init
   if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
@@ -52,9 +54,11 @@ int main() {
   // Gets called on window creation to init viewport
   glfwSetFramebufferSizeCallback(window, framebufferSizeCallback);
 
-  PhysicSolver physic_solver(glm::vec2(800.0f, 600.0f));
+  const float max_radius = 10.0f;
+  const float min_radius = 5.0f;
+  PhysicSolver physic_solver(screen_size, max_radius);
   Renderer renderer(physic_solver);
-  const uint32_t particle_count = 500;
+  const uint32_t particle_count = 5000;
   uint32_t active_particles = 0;
   float timer = 0.0f;
 
@@ -75,23 +79,26 @@ int main() {
     glClear(GL_COLOR_BUFFER_BIT);         // Use the clearing colour
 
     timer += dt;
-    if (fps > 50.0f && timer >= 0.01f) {
-      float radius = sinFluc(3.0f, 3.0f, curr_time * 2);
-      glm::vec2 center(screen_size.x / 10.0f, 9.0f / 10.0f * screen_size.y);
+    if (fps > 55.0f && timer >= 0.05f) {
+      float radius = sinFluc(min_radius, max_radius, curr_time * 1);
+      glm::vec2 vel(175.0f, 0);
       glm::ivec3 color(sinFluc(0.0f, 255.0f, curr_time),
                        sinFluc(0.0f, 255.0f, curr_time + 0.33f * 2 * PI),
                        sinFluc(0.0f, 255.0f, curr_time + 0.66f * 2 * PI));
-      glm::vec2 vel(100.0f, 0);
-      Particle &p = physic_solver.spawnParticle(center, radius);
-      p.color = color;
-      p.prev_pos = p.pos - (vel * dt);
 
-      active_particles++;
+      const uint32_t particle_spawn_rate = 5;
+      for (uint32_t i = 0; i < particle_spawn_rate; i++) {
+        glm::vec2 center(50.0, screen_size.y - 20.0f - (max_radius * 3 * i));
+        Particle &p = physic_solver.spawnParticle(center, radius);
+        p.color = color;
+        p.prev_pos = p.pos - (vel * dt);
+      }
+
+      active_particles += particle_spawn_rate;
       timer = 0.0f;
     }
     physic_solver.update(dt);
-    // renderer.drawParticles();
-    renderer.drawParticlesPoint();
+    renderer.drawParticles();
 
     glfwSwapBuffers(window); // Double buffering: swap current OpenGL colour
                              // buffer with the screen buffer to update screen

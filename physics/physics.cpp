@@ -3,8 +3,10 @@
 #include <glm/glm.hpp>
 #include <iostream>
 
-PhysicSolver::PhysicSolver(glm::vec2 _screen_size)
-    : screen_size(_screen_size), sub_steps(5) {}
+PhysicSolver::PhysicSolver(glm::vec2 _screen_size,
+                           const uint32_t _largest_particle_radius)
+    : screen_size(_screen_size), sub_steps(8),
+      largest_particle_radius(_largest_particle_radius) {}
 
 Particle &PhysicSolver::spawnParticle(glm::vec2 pos, const float radius) {
   this->particles.emplace_back(pos, radius);
@@ -18,9 +20,11 @@ void PhysicSolver::update(const float dt) {
   for (int i = 0; i < this->sub_steps; i++) {
     this->applyGravity();
     this->updateParticles(step_dt);
-    // this->solveParticleCollisionsBruteForce();
     this->constrainParticlesToBoxContainer(screen_size, screen_size / 2.0f);
-    this->solveParticleCollisionsFixedGrid();
+    this->solveParticleCollisionsFixedGridSpatialHash();
+    // this->solveParticleCollisionsFixedGridLoose();
+    // this->solveParticleCollisionsFixedGrid();
+    // this->solveParticleCollisionsBruteForce();
   }
 }
 
@@ -87,60 +91,124 @@ void PhysicSolver::constrainParticlesToCircleContainer(
 void PhysicSolver::solveParticleCollisionsBruteForce() {
   for (uint32_t i = 0; i < this->particles.size(); i++) {
     for (uint32_t j = i + 1; j < this->particles.size(); j++) {
-      Particle &p1 = particles[i];
-      Particle &p2 = particles[j];
-
-      this->collideTwoParticles(p1, p2);
+      this->collideTwoParticles(i, j);
     }
   }
 }
 
 void PhysicSolver::solveParticleCollisionsFixedGrid() {
-  const float largest_particle_radius = 3.0f;
-  const float cell_width = 2 * largest_particle_radius; // Cells are squares.
+  const float cell_width =
+      2 * this->largest_particle_radius; // Cells are squares.
   const uint32_t cell_count_x = std::ceil(this->screen_size.x / cell_width);
   const uint32_t cell_count_y = std::ceil(this->screen_size.y / cell_width);
 
-  // Stores particle args from main particles array.
-  std::vector<std::vector<std::vector<uint32_t>>> grid(
-      cell_count_y, std::vector<std::vector<uint32_t>>(cell_count_x));
+  // Stores particle args from main particles array in a flattened row major
+  // matrix.
+  std::vector<std::vector<uint32_t>> grid(cell_count_y * cell_count_x);
 
   this->assignParticlesToFixedGrid(grid, cell_count_x, cell_count_y,
                                    cell_width);
 
   for (uint32_t y = 0; y < cell_count_y; y++) {
     for (uint32_t x = 0; x < cell_count_x; x++) {
-      const uint32_t cell_particle_count = grid[y][x].size();
+      const uint32_t cell_particle_count = grid[y * cell_count_x + x].size();
       for (uint32_t p1_i = 0; p1_i < cell_particle_count; p1_i++) {
         for (uint32_t p2_i = p1_i + 1; p2_i < cell_particle_count; p2_i++) {
-          this->collideTwoParticles(this->particles[grid[y][x][p1_i]],
-                                    this->particles[grid[y][x][p2_i]]);
+          // p1_i and p2_i store the indices relative to the vector in the cell.
+          // But we need to convert the indices relative to the particles array.
+          this->collideTwoParticles(grid[y * cell_count_x + x][p1_i],
+                                    grid[y * cell_count_x + x][p2_i]);
         }
       }
     }
   }
+}
 
-  // const int threadCount = 8;
-  // std::vector<std::thread> threads(threadCount);
-  //
-  // for (int i = 0; i < threadCount; i++) {
-  //   int xStart = (cellCountX / threadCount) * i;
-  //   int xEnd = (cellCountX / threadCount) * (i + 1) - 1;
-  //   int yStart = 0;
-  //   int yEnd = cellCountY - 1;
-  //   threads[i] = std::thread(&ParticleSimulation::resolveCollisionsInSubGrid,
-  //                            this, std::ref(grid), xStart, xEnd, yStart,
-  //                            yEnd);
-  // }
-  //
-  // for (int i = 0; i < threadCount; i++) {
-  //   threads[i].join();
-  // }
+void PhysicSolver::solveParticleCollisionsFixedGridLoose() {
+  const float cell_width =
+      2 * this->largest_particle_radius; // Cells are squares.
+  // WARNING: Grid is padded.
+  const uint32_t cell_count_x = std::ceil(this->screen_size.x / cell_width) + 2;
+  const uint32_t cell_count_y = std::ceil(this->screen_size.y / cell_width) + 2;
+
+  // Stores particle args from main particles array.
+  // Add padding around grid to avoid stupid boundary checking.
+  std::vector<std::vector<uint32_t>> grid(cell_count_y * cell_count_x);
+
+  this->assignParticlesToFixedGridLoose(grid, cell_count_x, cell_count_y,
+                                        cell_width);
+
+  for (int32_t y = 1; y < cell_count_y - 1; y++) {
+    for (int32_t x = 1; x < cell_count_x - 1; x++) {
+      const uint32_t middle_cell_particle_count =
+          grid[y * cell_count_x + x].size();
+
+      for (int32_t x_offset = -1; x_offset <= 1; x_offset++) {
+        for (int32_t y_offset = -1; y_offset <= 1; y_offset++) {
+          const uint32_t neighbour_cell_particle_count =
+              grid[(y + y_offset) * cell_count_x + x + x_offset].size();
+          for (int32_t p1_i = 0; p1_i < middle_cell_particle_count; p1_i++) {
+            for (int32_t p2_i = 0; p2_i < neighbour_cell_particle_count;
+                 p2_i++) {
+              this->collideTwoParticles(
+                  grid[y * cell_count_x + x][p1_i],
+                  grid[(y + y_offset) * cell_count_x + x + x_offset][p2_i]);
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+void PhysicSolver::solveParticleCollisionsFixedGridSpatialHash() {
+  const float cell_width =
+      2 * this->largest_particle_radius; // Cells are squares.
+  // WARNING: Grid is padded.
+  const uint32_t cell_count_x = std::ceil(this->screen_size.x / cell_width) + 2;
+  const uint32_t cell_count_y = std::ceil(this->screen_size.y / cell_width) + 2;
+  const uint32_t particle_count = this->particles.size();
+
+  // Stores particle count of each cell in the grid.
+  std::vector<uint32_t> grid_cell_count(cell_count_y * cell_count_x, 0);
+  // Particles args sorted by cell
+  std::vector<uint32_t> particles_sorted(particle_count, 0);
+
+  this->assignParticlesToFixedGridSpatialHash(grid_cell_count, particles_sorted,
+                                              cell_count_x, cell_count_y,
+                                              cell_width);
+
+  for (uint32_t p_i = 0; p_i < particle_count; p_i++) {
+    Particle &p = this->particles[p_i];
+    const uint32_t cell_x = (uint32_t)(p.pos.x / cell_width) + 1;
+    const uint32_t cell_y = (uint32_t)(p.pos.y / cell_width) + 1;
+
+    const uint32_t cell_x_min = cell_x - 1;
+    const uint32_t cell_y_min = cell_y - 1;
+
+    const uint32_t cell_x_max = cell_x + 1;
+    const uint32_t cell_y_max = cell_y + 1;
+
+    const uint32_t p_start = grid_cell_count[cell_y * cell_count_x + cell_x];
+    const uint32_t p_end = grid_cell_count[cell_y * cell_count_x + cell_x + 1];
+
+    for (uint32_t y = cell_y_min; y <= cell_y_max; y++) {
+      for (uint32_t x = cell_x_min; x < cell_x_max; x++) {
+        const uint32_t start = grid_cell_count[y * cell_count_x + x];
+        const uint32_t end = grid_cell_count[y * cell_count_x + x + 1];
+        for (uint32_t i = p_start; i < p_end; i++) {
+          for (uint32_t j = start; j < end; j++) {
+            collideTwoParticles(particles_sorted[i], particles_sorted[j]);
+          }
+        }
+      }
+    }
+  }
 }
 
 void PhysicSolver::assignParticlesToFixedGrid(
-    std::vector<std::vector<std::vector<uint32_t>>> &grid,
-    uint32_t cell_count_x, uint32_t cell_count_y, float cell_width) {
+    std::vector<std::vector<uint32_t>> &grid, uint32_t cell_count_x,
+    uint32_t cell_count_y, float cell_width) {
 
   uint32_t particle_count = this->particles.size();
 
@@ -151,9 +219,7 @@ void PhysicSolver::assignParticlesToFixedGrid(
     const uint32_t cell_x = (uint32_t)(p.pos.x / cell_width);
     const uint32_t cell_y = (uint32_t)(p.pos.y / cell_width);
 
-    // std::cout << p.pos.x << " " << p.pos.y << "\n";
-
-    grid[cell_y][cell_x].push_back(p_i);
+    grid[cell_y * cell_count_x + cell_x].push_back(p_i);
 
     // Put cells into neighbouring cells if they overflow into them.
     bool in_north = cell_y + 1 < cell_count_y &&
@@ -164,35 +230,90 @@ void PhysicSolver::assignParticlesToFixedGrid(
     bool in_west = cell_x - 1 >= 0 && p.pos.x - p.radius < cell_width * cell_x;
 
     if (in_north) {
-      grid[cell_y + 1][cell_x].push_back(p_i);
+      grid[(cell_y + 1) * cell_count_x + cell_x].push_back(p_i);
       if (in_east) {
-        grid[cell_y + 1][cell_x + 1].push_back(p_i);
+        grid[(cell_y + 1) * cell_count_x + cell_x + 1].push_back(p_i);
       }
     }
     if (in_east) {
-      grid[cell_y][cell_x + 1].push_back(p_i);
+      grid[cell_y * cell_count_x + cell_x + 1].push_back(p_i);
       if (in_south) {
-        grid[cell_y - 1][cell_x + 1].push_back(p_i);
+        grid[(cell_y - 1) * cell_count_x + cell_x + 1].push_back(p_i);
       }
     }
     if (in_south) {
-      grid[cell_y - 1][cell_x].push_back(p_i);
+      grid[(cell_y - 1) * cell_count_x + cell_x].push_back(p_i);
       if (in_west) {
-        grid[cell_y - 1][cell_x - 1].push_back(p_i);
+        grid[(cell_y - 1) * cell_count_x + cell_x - 1].push_back(p_i);
       }
     }
     if (in_west) {
-      grid[cell_y][cell_x - 1].push_back(p_i);
+      grid[cell_y * cell_count_x + cell_x - 1].push_back(p_i);
       if (in_north) {
-        grid[cell_y + 1][cell_x - 1].push_back(p_i);
+        grid[(cell_y + 1) * cell_count_x + cell_x - 1].push_back(p_i);
       }
     }
   }
 }
 
-void PhysicSolver::collideTwoParticles(Particle &p1, Particle &p2) {
-  if (&p1 == &p2)
+void PhysicSolver::assignParticlesToFixedGridLoose(
+    std::vector<std::vector<uint32_t>> &grid, uint32_t cell_count_x,
+    uint32_t cell_count_y, float cell_width) {
+
+  const uint32_t particle_count = this->particles.size();
+
+  // Assign particles to grid cells.
+  for (uint32_t p_i = 0; p_i < particle_count; p_i++) {
+    Particle &p = this->particles[p_i];
+    // Assign cell by centroid. Remember that grid is padded.
+    const uint32_t cell_x = (uint32_t)(p.pos.x / cell_width) + 1;
+    const uint32_t cell_y = (uint32_t)(p.pos.y / cell_width) + 1;
+
+    grid[cell_y * cell_count_x + cell_x].push_back(p_i);
+  }
+}
+
+void PhysicSolver::assignParticlesToFixedGridSpatialHash(
+    std::vector<uint32_t> &grid_cell_count,
+    std::vector<uint32_t> &particles_sorted, uint32_t cell_count_x,
+    uint32_t cell_count_y, float cell_width) {
+
+  uint32_t particle_count = this->particles.size();
+
+  // Adjust particle count of respective cells.
+  for (uint32_t p_i = 0; p_i < particle_count; p_i++) {
+    Particle &p = this->particles[p_i];
+    // Assign cell by centroid.
+    const uint32_t cell_x = (uint32_t)(p.pos.x / cell_width) + 1;
+    const uint32_t cell_y = (uint32_t)(p.pos.y / cell_width) + 1;
+
+    grid_cell_count[cell_y * cell_count_x + cell_x] += 1;
+  }
+
+  // Cumulative sum. Remember that last cell is an overflow guard.
+  for (uint32_t i = 0; i < grid_cell_count.size() - 1; i++) {
+    grid_cell_count[i + 1] += grid_cell_count[i];
+  }
+
+  // Populate sorted particles array.
+  for (uint32_t p_i = 0; p_i < particle_count; p_i++) {
+    Particle &p = this->particles[p_i];
+    // Assign cell by centroid.
+    const uint32_t cell_x = (uint32_t)(p.pos.x / cell_width) + 1;
+    const uint32_t cell_y = (uint32_t)(p.pos.y / cell_width) + 1;
+
+    grid_cell_count[cell_y * cell_count_x + cell_x]--;
+    particles_sorted[grid_cell_count[cell_y * cell_count_x + cell_x]] = p_i;
+  }
+}
+
+void PhysicSolver::collideTwoParticles(const uint32_t p1_i,
+                                       const uint32_t p2_i) {
+  if (p1_i == p2_i)
     return;
+
+  Particle &p1 = this->particles[p1_i];
+  Particle &p2 = this->particles[p2_i];
 
   const float e = 0.75f;
   const float distanceBetweenCenters = glm::length(p1.pos - p2.pos);

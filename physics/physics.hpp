@@ -12,8 +12,9 @@ struct PhysicSolver {
   std::vector<Particle> particles;
   glm::vec2 screen_size;
   const uint8_t sub_steps;
+  float largest_particle_radius;
 
-  PhysicSolver(glm::vec2 _screen_size);
+  PhysicSolver(glm::vec2 _screen_size, const uint32_t largest_particle_radius);
 
   Particle &spawnParticle(glm::vec2 pos, const float radius);
 
@@ -33,9 +34,22 @@ struct PhysicSolver {
 
   void solveParticleCollisionsFixedGrid();
 
-  void assignParticlesToFixedGrid(
-      std::vector<std::vector<std::vector<uint32_t>>> &grid,
-      uint32_t cell_count_x, uint32_t cell_count_y, float cell_width);
+  void solveParticleCollisionsFixedGridLoose();
 
-  void collideTwoParticles(Particle &p1, Particle &p2);
+  void solveParticleCollisionsFixedGridSpatialHash();
+
+  void assignParticlesToFixedGrid(std::vector<std::vector<uint32_t>> &grid,
+                                  uint32_t cell_count_x, uint32_t cell_count_y,
+                                  float cell_width);
+
+  void assignParticlesToFixedGridLoose(std::vector<std::vector<uint32_t>> &grid,
+                                       uint32_t cell_count_x,
+                                       uint32_t cell_count_y, float cell_width);
+
+  void assignParticlesToFixedGridSpatialHash(
+      std::vector<uint32_t> &grid_cell_count,
+      std::vector<uint32_t> &particles_sorted, uint32_t cell_count_x,
+      uint32_t cell_count_y, float cell_width);
+
+  void collideTwoParticles(const uint32_t p1_i, const uint32_t p2_i);
 };

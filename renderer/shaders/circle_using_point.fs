@@ -8,10 +8,10 @@ in float radius;
 out vec4 out_color;
 
 void main() {
-    vec3 color = frag_color;
+    vec4 color = vec4(frag_color / 255.0, 1.0);
     if (distance(gl_FragCoord.xy, center) > radius) {
-        color = vec3(0, 0, 0);
+        color = vec4(0, 0, 0, 0);
     }
-    out_color = vec4(color / 255.0, 1.0);
+    out_color = color;
 }
 

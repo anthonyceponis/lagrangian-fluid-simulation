@@ -7,5 +7,4 @@ struct Renderer {
   Shader shader;
   Renderer(PhysicSolver &_solver);
   void drawParticles();
-  void drawParticlesPoint();
 };
