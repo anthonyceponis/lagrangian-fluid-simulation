@@ -54,12 +54,13 @@ int main() {
   // Gets called on window creation to init viewport
   glfwSetFramebufferSizeCallback(window, framebufferSizeCallback);
 
-  const float max_radius = 10.0f;
+  const float max_radius = 5.0f;
   const float min_radius = 5.0f;
+  const uint32_t particle_count = 5000;
   PhysicSolver physic_solver(screen_size, max_radius);
   Renderer renderer(physic_solver);
-  const uint32_t particle_count = 5000;
   uint32_t active_particles = 0;
+  const uint32_t particle_spawn_rate = 8;
   float timer = 0.0f;
 
   // Render loop
@@ -86,7 +87,6 @@ int main() {
                        sinFluc(0.0f, 255.0f, curr_time + 0.33f * 2 * PI),
                        sinFluc(0.0f, 255.0f, curr_time + 0.66f * 2 * PI));
 
-      const uint32_t particle_spawn_rate = 5;
       for (uint32_t i = 0; i < particle_spawn_rate; i++) {
         glm::vec2 center(50.0, screen_size.y - 20.0f - (max_radius * 3 * i));
         Particle &p = physic_solver.spawnParticle(center, radius);
@@ -124,5 +124,3 @@ void processInput(GLFWwindow *window) {
     glfwSetWindowShouldClose(window, true);
   }
 }
-
-// Command to run program: g++ main.cpp glad.c -ldl-lglfw -pthread
