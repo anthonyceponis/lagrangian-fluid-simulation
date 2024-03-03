@@ -7,8 +7,8 @@
 #include "shader.hpp"
 
 Renderer::Renderer(PhysicSolver &_solver)
-    : solver(_solver), shader("renderer/shaders/circle_using_point.vs",
-                              "renderer/shaders/circle_using_point.fs"){};
+    : solver(_solver), shader("renderer/shaders/circle.vs.glsl",
+                              "renderer/shaders/circle.fs.glsl"){};
 
 void Renderer::drawParticles() {
   const uint32_t particle_count = this->solver.particles.size();

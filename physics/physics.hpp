@@ -6,6 +6,7 @@
 #include <glm/glm.hpp>
 
 #include "particle.hpp"
+#include "../renderer/compute_shader.hpp"
 
 struct PhysicSolver {
   std::vector<Particle> particles;
@@ -15,6 +16,7 @@ struct PhysicSolver {
   uint32_t cell_count_x;
   uint32_t cell_count_y;
   std::vector<std::vector<uint32_t>> grid;
+  ComputeShader compute_shader;
 
   PhysicSolver(glm::vec2 _screen_size, const float _largest_particle_radius);
 
@@ -23,6 +25,8 @@ struct PhysicSolver {
   void update(const float dt);
 
   void applyGravity();
+
+  void applyAirResistance();
 
   void updateParticles(const float dt);
 
@@ -37,6 +41,10 @@ struct PhysicSolver {
                                   const uint32_t y_start, const uint32_t y_end);
 
   void assignParticlesToFixedGrid();
+
+  void solveParticleCollisionsSpatialHash();
+
+  // int32_t hashPos(glm::vec2 pos);
 
   void collideTwoParticles(const uint32_t p1_i, const uint32_t p2_i);
 };

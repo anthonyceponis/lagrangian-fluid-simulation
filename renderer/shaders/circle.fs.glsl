@@ -1,4 +1,4 @@
-#version 330 core 
+#version 430 core 
 
 // RGB values in range 0-255 inclusive
 in vec3 frag_color;
