@@ -1,50 +1,38 @@
 #pragma once
 
 #include <cstdint>
-#include <vector>
 
 #include <glm/glm.hpp>
 
-#include "particle.hpp"
+// #include "gpu_compute.hpp"
+#include "particles.hpp"
+#include "spatial_grid.hpp"
 #include "../renderer/compute_shader.hpp"
 
 struct PhysicSolver {
-  std::vector<Particle> particles;
-  glm::vec2 screen_size;
+  Particles particles;
+  glm::vec2 world_size;
   const uint8_t sub_steps;
-  float cell_width;
-  uint32_t cell_count_x;
-  uint32_t cell_count_y;
-  std::vector<std::vector<uint32_t>> grid;
+  uint32_t particle_count;
+  float particle_radius;
+  float particle_mass;
+  float smoothing_radius;
+  SpatialGrid *spatial_grid;
   ComputeShader compute_shader;
 
-  PhysicSolver(glm::vec2 _screen_size, const float _largest_particle_radius);
+  PhysicSolver(glm::vec2 _screen_size, const uint32_t _particle_count,
+               const float _particle_radius, const float _particle_mass,
+               const uint8_t _sub_steps, const float _smoothing_radius);
 
-  Particle &spawnParticle(glm::vec2 pos, const float radius);
+  ~PhysicSolver();
 
   void update(const float dt);
 
-  void applyGravity();
+  void applyGravity(float step_dt);
 
-  void applyAirResistance();
+  void calcDensities(const float step_dt);
 
-  void updateParticles(const float dt);
+  void calcDensitiesAndApplyPressureForce(const float step_dt);
 
-  void constrainParticlesToBoxContainer(const glm::vec2 box_container_size,
-                                        const glm::vec2 box_container_center);
-
-  void solveParticleCollisionsBruteForce();
-
-  void solveParticleCollisionsFixedGrid();
-
-  void solveGridCollisionsInRange(const uint32_t x_start, const uint32_t x_end,
-                                  const uint32_t y_start, const uint32_t y_end);
-
-  void assignParticlesToFixedGrid();
-
-  void solveParticleCollisionsSpatialHash();
-
-  // int32_t hashPos(glm::vec2 pos);
-
-  void collideTwoParticles(const uint32_t p1_i, const uint32_t p2_i);
+  void constrainParticlesToScreen(const float step_dt);
 };

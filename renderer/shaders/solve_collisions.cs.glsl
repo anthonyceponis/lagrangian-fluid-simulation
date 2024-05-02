@@ -28,8 +28,8 @@ void main() {
     
     int p_i = int(gl_GlobalInvocationID.x);
 
-    // WARNING: assuming that my sim wont go over 10k to avoid stupid const expr error.
-    const int max_query_size = 10000; 
+    // WARNING: Assuming that query wont go over 100.
+    const int max_query_size = 100; 
     int query_ids[max_query_size];
     int query_size = 0;
 
@@ -42,6 +42,7 @@ void main() {
             int curr_y = y + dy;
             int h = curr_y * ssbo4.cell_count_x + curr_x;
 
+            // Check can be removed by pre computing the ranges using a radius
             if (curr_x < 0 || curr_y < 0 || curr_x >= ssbo4.cell_count_x || curr_y >= ssbo4.cell_count_y) {
                 continue;
             }
@@ -75,7 +76,7 @@ void collideParticles(int p1_i, int p2_i) {
     vec2 p1_pos = vec2(ssbo1.positions[2 * p1_i], ssbo1.positions[2 * p1_i + 1]);
     vec2 p2_pos = vec2(ssbo1.positions[2 * p2_i], ssbo1.positions[2 * p2_i + 1]);
 
-    float e = 0.75;
+    float e = 0.5;
     float distance_between_centers = length(p1_pos - p2_pos);
     float sum_of_radii = p1_radius + p2_radius;
 
@@ -90,20 +91,12 @@ void collideParticles(int p1_i, int p2_i) {
         p1_pos += mass_ratio_2 * delta * n;
         p2_pos -= mass_ratio_1 * delta * n;
         
+        ssbo1.positions[2 * p1_i] = p1_pos.x;
+        ssbo1.positions[2 * p1_i + 1] = p1_pos.y;
 
-        if (p1_i % 2 == 0) {
-            ssbo1.positions[2 * p1_i] = p1_pos.x;
-            ssbo1.positions[2 * p1_i + 1] = p1_pos.y;
+        ssbo1.positions[2 * p2_i] = p2_pos.x;
+        ssbo1.positions[2 * p2_i + 1] = p2_pos.y;
 
-            ssbo1.positions[2 * p2_i] = p2_pos.x;
-            ssbo1.positions[2 * p2_i + 1] = p2_pos.y;
-        } else {
-            ssbo1.positions[2 * p2_i] = p2_pos.x;
-            ssbo1.positions[2 * p2_i + 1] = p2_pos.y;
-            
-            ssbo1.positions[2 * p1_i] = p1_pos.x;
-            ssbo1.positions[2 * p1_i + 1] = p1_pos.y;
-        }
     }
 
 }

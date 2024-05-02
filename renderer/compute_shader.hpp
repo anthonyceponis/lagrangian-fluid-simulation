@@ -1,6 +1,7 @@
 #pragma once
 #include <glad/glad.h>
 #include <string>
+#include <vector>
 #include <fstream>
 #include <sstream>
 #include <iostream>
@@ -71,6 +72,44 @@ public:
 
   // Use/activate the shader
   void use() { glUseProgram(ID); }
+
+  template <typename T>
+  uint32_t setVector(std::vector<T> &vec, const uint32_t binding_id) {
+    uint32_t ssbo;
+
+    glGenBuffers(1, &ssbo);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, ssbo);
+    glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(T) * vec.size(), vec.data(),
+                 GL_STATIC_DRAW);
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, binding_id, ssbo);
+
+    return ssbo;
+  }
+
+  void setFloat(const float value, const std::string &name) {
+    uint32_t uniform_loc = glGetUniformLocation(this->ID, name.c_str());
+    glUniform1f(uniform_loc, value);
+  }
+
+  void setUnsignedInt(const uint32_t value, const std::string &name) {
+    uint32_t uniform_loc = glGetUniformLocation(this->ID, name.c_str());
+    glUniform1ui(uniform_loc, value);
+  }
+
+  template <typename T>
+  void extractVector(uint32_t ssbo_id, std::vector<T> &desintation) {
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, ssbo_id);
+    glGetBufferSubData(GL_SHADER_STORAGE_BUFFER, 0,
+                       sizeof(T) * desintation.size(), desintation.data());
+  }
+
+  void executeSync(const uint32_t work_group_size) {
+    // Dispatch workers.
+    // Dispatch in multiples of 64 due to 'warp size'.
+    glDispatchCompute((work_group_size + 63) / 64, 1, 1);
+    // glDispatchCompute(work_group_size, 1, 1);
+    glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+  }
 
   ~ComputeShader() { glDeleteProgram(ID); }
 };

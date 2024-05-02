@@ -2,7 +2,6 @@
 #include <GLFW/glfw3.h>
 
 #include <cmath>
-#include <cstdint>
 #include <glm/glm.hpp>
 #include <iostream>
 
@@ -21,8 +20,6 @@ float sinFluc(float minSize, float maxSize, float seed) {
 int main() {
   glm::vec2 screen_size(1200.0f, 800.0f);
 
-  const float PI = 3.14159265f;
-
   float prev_time = 0.0f;
   float curr_time;
   float dt;
@@ -38,7 +35,7 @@ int main() {
   GLFWwindow *window = glfwCreateWindow(screen_size.x, screen_size.y,
                                         "Particle Simulation", NULL, NULL);
   if (window == NULL) {
-    std::cout << "Failed to create GLFW window\n";
+    std::cerr << "Failed to create GLFW window\n";
     glfwTerminate();
     return -1;
   }
@@ -47,7 +44,7 @@ int main() {
 
   // GLAD: Init
   if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
-    std::cout << "Failed to initialize GLAD\n";
+    std::cerr << "Failed to initialize GLAD\n";
     return -1;
   }
 
@@ -55,32 +52,16 @@ int main() {
   // Gets called on window creation to init viewport
   glfwSetFramebufferSizeCallback(window, framebufferSizeCallback);
 
-  const float max_radius = 3.0f;
-  const float min_radius = 3.0f;
-  const uint32_t particle_count = 2000;
-  PhysicSolver physic_solver(screen_size, max_radius);
+  const float particle_radius = 4.f;
+  const float particle_mass = 2.5f;
+  const uint32_t particle_count = 50 * 50;
+  const uint8_t sub_steps = 1;
+  const float smoothing_radius = 16.f;
+
+  PhysicSolver physic_solver(screen_size, particle_count, particle_radius,
+                             particle_mass, sub_steps, smoothing_radius);
   Renderer renderer(physic_solver);
-  uint32_t active_particles = 0;
-  const uint32_t particle_spawn_rate = 12;
-  float timer = 0.0f;
 
-  // ComputeShader compute_shader("shaders/test.cs.glsl");
-
-  // const glm::uvec2 texture_size(512, 512);
-  // uint32_t texture;
-  //
-  // glGenTextures(1, &texture);
-  // glActiveTexture(GL_TEXTURE0);
-  // glBindTexture(GL_TEXTURE_2D, texture);
-  // glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-  // glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-  // glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-  // glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-  // glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, texture_size.x, texture_size.y,
-  // 0,
-  //              GL_RGBA, GL_FLOAT, NULL);
-  // glBindImageTexture(0, texture, 0, GL_FALSE, 0, GL_READ, GL_RGBA32F);
-  //
   // Render loop
   while (!glfwWindowShouldClose(window)) {
     // Update delta time
@@ -89,41 +70,13 @@ int main() {
     prev_time = curr_time;
     float fps = 1.0f / dt;
 
-    std::cout << "FPS: " << fps << " Active particles: " << active_particles
-              << "\n";
+    std::cout << "FPS: " << fps << "\n";
 
     processInput(window);
 
-    glClearColor(0.0f, 0.0f, 0.0f, 1.0f); // Set the clearing colour
+    glClearColor(0.9f, 0.9f, 0.9f, 1.0f); // Set the clearing colour
     glClear(GL_COLOR_BUFFER_BIT);         // Use the clearing colour
 
-    // compute_shader.use();
-
-    timer += dt;
-    if (fps > 55.0f && timer >= 0.01f) {
-      float radius = sinFluc(min_radius, max_radius, curr_time * 1);
-      glm::vec2 vel(100.0f, 0);
-      glm::ivec3 color(sinFluc(0.0f, 255.0f, curr_time),
-                       sinFluc(0.0f, 255.0f, curr_time + 0.33f * 2 * PI),
-                       sinFluc(0.0f, 255.0f, curr_time + 0.66f * 2 * PI));
-      for (uint32_t i = 0; i < particle_spawn_rate; i++) {
-        glm::vec2 center(50.0, screen_size.y - 20.0f - (max_radius * 3 * i));
-
-        // Particle &p_left = physic_solver.spawnParticle(center, radius);
-        // p_left.color = color;
-        // p_left.prev_pos = p_left.pos - (vel * dt);
-
-        Particle &p_right = physic_solver.spawnParticle(
-            glm::vec2(screen_size.x - center.x, center.y), radius);
-        p_right.color = color;
-        p_right.prev_pos = p_right.pos + (vel * dt);
-      }
-
-      active_particles += particle_spawn_rate;
-      if (active_particles >= particle_count)
-        return 0;
-      timer = 0.0f;
-    }
     physic_solver.update(dt);
     renderer.drawParticles();
 

@@ -11,7 +11,8 @@ out vec2 center;
 out float radius;
 
 void main() {
-    gl_Position = projection * vec4(a_pos, 0.0, 1.0);
+    vec4 pos = projection * vec4(a_pos, 0.0, 1.0);
+    gl_Position = pos;
     gl_PointSize = 2.0 * a_radius;
     
     frag_color = a_color; 

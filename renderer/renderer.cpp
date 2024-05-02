@@ -11,20 +11,19 @@ Renderer::Renderer(PhysicSolver &_solver)
                               "renderer/shaders/circle.fs.glsl"){};
 
 void Renderer::drawParticles() {
-  const uint32_t particle_count = this->solver.particles.size();
+  const uint32_t particle_count = this->solver.particle_count;
 
   // Vertex data: [pos_x, pos_y, radius, col_y, col_g, col_b];
   float vertex_data[particle_count * 6];
 
   for (uint32_t i = 0; i < particle_count; i++) {
-    Particle &p = this->solver.particles[i];
 
-    vertex_data[i * 6] = p.pos.x;
-    vertex_data[i * 6 + 1] = p.pos.y;
-    vertex_data[i * 6 + 2] = p.radius;
-    vertex_data[i * 6 + 3] = p.color.r;
-    vertex_data[i * 6 + 4] = p.color.g;
-    vertex_data[i * 6 + 5] = p.color.b;
+    vertex_data[i * 6] = this->solver.particles.positions[i].x;
+    vertex_data[i * 6 + 1] = this->solver.particles.positions[i].y;
+    vertex_data[i * 6 + 2] = this->solver.particle_radius;
+    vertex_data[i * 6 + 3] = this->solver.particles.colours[i].r;
+    vertex_data[i * 6 + 4] = this->solver.particles.colours[i].g;
+    vertex_data[i * 6 + 5] = this->solver.particles.colours[i].b;
   }
 
   uint32_t vao, vbo;
@@ -52,8 +51,8 @@ void Renderer::drawParticles() {
   glEnable(GL_PROGRAM_POINT_SIZE); // Enable point size control in shader
   glPointSize(default_point_size);
 
-  glm::mat4 projection = glm::ortho(0.0f, this->solver.screen_size.x, 0.0f,
-                                    this->solver.screen_size.y, -1.0f, 1.0f);
+  glm::mat4 projection = glm::ortho(0.0f, this->solver.world_size.x, 0.0f,
+                                    this->solver.world_size.y, 0.f, 1.0f);
   this->shader.use();
   shader.setMat4("projection", projection);
 
