@@ -1,4 +1,4 @@
-### Setup instructions
+### Setup instructions (Ubuntu)
 
 Run the following commands to install GLFW and GLM respectively:
 1. ```sudo apt install libglfw3-dev```
